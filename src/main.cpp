@@ -1,5 +1,9 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
+//#include <ArduinoJson.h>
+
+#include<cstring>
+#include<string>
 
 //#include "HTTPClient.h"
 
@@ -22,14 +26,14 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 
 DHTesp dht;
 
-const char* ssid = "keke";
-const char* password = "qp10al29zm38keke";
-const char* mqtt_server = "192.168.0.235";
+const char* ssid = "White-House";
+const char* password = "qazwsxedcrfv123!";
+const char* mqtt_server = "192.168.2.200";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 unsigned long lastMsg = 0;
-#define MSG_BUFFER_SIZE	(50)
+#define MSG_BUFFER_SIZE	(500) //50
 char msg[MSG_BUFFER_SIZE];
 int value = 0;
 
@@ -64,19 +68,26 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
   Serial.print("] ");
+  Serial.println();
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
 
-  // Switch on the LED if an 1 was received as first character
-  if ((char)payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-    // but actually the LED is on; this is because
-    // it is active low on the ESP-01)
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  }
+  // String message;
+  // for (int i = 0; i < length; i++) {
+  //   message = message + (char) payload[i];  // convert *byte to string
+  // }
+  // Serial.print(message);
+
+  //// Switch on the LED if an 1 was received as first character
+  // if ((char)payload[0] == '1') {
+  //   digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+  //   // but actually the LED is on; this is because
+  //   // it is active low on the ESP-01)
+  // } else {
+  //   digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+  // }
 
 ////////////////
 
@@ -86,7 +97,34 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     String sMessage = (char *)payload;        //将消息转换为String
     sMessage = sMessage.substring(0, length); //取合法长度 避免提取到旧消息
-     Serial.println(sMessage); //输出消息 用于调试 可以注释掉
+    Serial.println(sMessage); //输出消息 用于调试 可以注释掉
+
+    //解析json
+    DynamicJsonDocument jsonBuffer(512); //创建一个DynamicJsonDocument类型的doc对象,大小2048byte
+    //DynamicJsonBuffer jsonBuffer;
+    //JsonObject& root = jsonBuffer.JsonObject(sMessage);
+    Serial.println("从sMessage解码成的DynamicJsonDocument对象doc:");
+    deserializeJson(jsonBuffer, sMessage);
+    for (int i = 0; i < length; i++) {
+      payload[i] = NULL;
+    }
+    sMessage = "";
+    // serializeJson(jsonBuffer, Serial);
+    Serial.println("从jsonBuffer对象转换成的JsonObject类型对象root:");
+    JsonObject root = jsonBuffer.as<JsonObject>();
+    // serializeJson(root, Serial);
+    Serial.println();
+    Serial.println(jsonBuffer.memoryUsage());
+    Serial.println(measureJson(jsonBuffer));
+    Serial.println(measureJsonPretty(jsonBuffer));
+
+    String LED1State = jsonBuffer["LED1"];
+    String LED2State = jsonBuffer["LED2"];
+    String LED3State = jsonBuffer["LED3"];
+
+    Serial.println(LED1State);
+    Serial.println(LED2State);
+    Serial.println(LED3State);
 
     //按字符判断mqtt消息中命令的作用 可以自行定义
     if (sMessage.charAt(0) == '#')
@@ -389,7 +427,7 @@ void thread8() {
 
   if(WiFi.status() == WL_CONNECTED){
     Serial.println("");
-    Serial.println("WiFi connected");
+    Serial.println("WiFi connecteddddddddddddddddd");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
     
@@ -418,6 +456,67 @@ void thread8() {
 
 }
 
+Ritos tarefa9; // Thread Task Two / 綫程任務9
+volatile int ms_9 = 3000;
+void thread9() {
+
+  ms_9--;
+
+  if ( ms_9 <= 0 ) {
+
+    //ets_delay_us(1000);
+
+    // 200 是大小 如果这个Json对象更加复杂，那么就需要根据需要去增加这个值.
+  //StaticJsonDocument<200> doc;
+ 
+  // StaticJsonDocument 在栈区分配内存   它也可以被 DynamicJsonDocument（内存在堆区分配） 代替
+  DynamicJsonDocument  doc(200);
+ 
+  //添加键值对
+  doc["sensor"] = "gps";
+  doc["time"] = 1351824120;
+ 
+  // 添加数组.
+  JsonArray data = doc.createNestedArray("data");
+  data.add(48.756080);
+  data.add(2.302038);
+ 
+//串口打印结果
+  serializeJson(doc, Serial);
+  Serial.println();
+
+//   /**
+//  * 构造序列化json，格式化输出
+//  * @param doc jsondocument对象
+//  * @param output 输出内容
+//  */
+//   size_t serializeJsonPretty(const JsonDocument& doc, char* output, size_t outputSize);
+//   size_t serializeJsonPretty(const JsonDocument& doc, char output[size]);
+//   size_t serializeJsonPretty(const JsonDocument& doc, Print& output);
+//   size_t serializeJsonPretty(const JsonDocument& doc, String& output);
+//   size_t serializeJsonPretty(const JsonDocument& doc, std::string& output);
+  
+  // string str1 = "ABCDEFG";
+  // char a[20];
+  // strcpy(a,str1.c_str());//用到 c_str()函数
+
+
+  String output;
+  serializeJson(doc, output);
+  Serial.println(output);
+
+  String smsg = output;
+	char cmsg[smsg.length()]; 
+  strcpy(cmsg,smsg.c_str());
+
+    snprintf (msg, MSG_BUFFER_SIZE, cmsg);
+    client.publish("outTopic", msg);
+    lastMsg = millis();
+
+    ms_9 = 3000;
+  }
+  
+}
 
 void setup() {
   Serial.begin(115200);
@@ -463,6 +562,7 @@ void setup() {
   tarefa6.task(thread6);
   tarefa7.task(thread7);
   tarefa8.task(thread8);
+  tarefa8.task(thread9);
 
 }
 
